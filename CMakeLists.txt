@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.16)
 
 project(SamplerInfiniteGUI VERSION 0.1 LANGUAGES CXX)
 
+
+
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
@@ -45,6 +47,9 @@ if (MSVC)
     )
 endif()
 
+# this prevents qt keywords from stopping libTorch integration
+# target_compile_definitions(SamplerInfiniteGUI PRIVATE QT_NO_KEYWORDS)
+
 # compile definitions
 add_compile_definitions(USE_CUDA)
 
@@ -65,57 +70,52 @@ install(TARGETS SamplerInfiniteGUI
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
-# set(ONNXRUNTIME_DIR "C:/libs/onnxruntime-win-x64-1.23.2")
-set(ONNXRUNTIME_DIR "C:/libs/onnxruntime-win-x64-gpu-1.17.3")
-set(NVIDIATOOLS_DIR "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v11.8")
-set(NVIDIA_DIR "C:/Program Files/NVIDIA/CUDNN/v9.17")
-set(NVIDIA_8_DIR "C:/libs/cudnn-windows-x86_64-8.9.7.29_cuda11-archive")
+# set(ONNXRUNTIME_DIR "C:/libs/onnxruntime-win-x64-gpu-1.17.3")
+# set(NVIDIATOOLS_DIR "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v11.8")
+# set(NVIDIA_DIR "C:/Program Files/NVIDIA/CUDNN/v9.17")
+# set(NVIDIA_8_DIR "C:/libs/cudnn-windows-x86_64-8.9.7.29_cuda11-archive")
+set(Torch_DIR "C:/libs/libtorch")
+set(VCPKG_DIR "C:/VCPKG/vcpkg/installed/x64-windows")
 
-target_include_directories(SamplerInfiniteGUI PRIVATE ${ONNXRUNTIME_DIR}/include)
-target_include_directories(SamplerInfiniteGUI PRIVATE ${NVIDIATOOLS_DIR}/include)
-target_include_directories(SamplerInfiniteGUI PRIVATE ${NVIDIA_DIR}/include/13.1)
-target_include_directories(SamplerInfiniteGUI PRIVATE ${NVIDIA_8_DIR}/include)
+target_include_directories(SamplerInfiniteGUI PRIVATE
+    ${Torch_DIR}/include
+    ${Torch_DIR}/include/torch/csrc/api/include
+    ${VCPKG_DIR}/include
+)
 
 target_link_directories(SamplerInfiniteGUI PRIVATE
-    ${ONNXRUNTIME_DIR}/lib
-    ${NVIDIATOOLS_DIR}/lib/x64
-    # ${NVIDIA_DIR}/lib/13.1/x64
-    ${NVIDIA_8_DIR}/lib/x64
+    ${Torch_DIR}/lib
+    ${VCPKG_DIR}/lib
 )
-# get_target_property(_flags SamplerInfiniteGUI COMPILE_OPTIONS)
-# message(STATUS "Compile flags: ${_flags}")
-
 
 target_link_libraries(SamplerInfiniteGUI PRIVATE
-    ${ONNXRUNTIME_DIR}/lib/onnxruntime.lib
-    ${ONNXRUNTIME_DIR}/lib/onnxruntime_providers_cuda.lib
-    ${ONNXRUNTIME_DIR}/lib/onnxruntime_providers_shared.lib
-    ${NVIDIATOOLS_DIR}/lib/x64/cudart.lib
-    ${NVIDIATOOLS_DIR}/lib/x64/cublas.lib
-    ${NVIDIATOOLS_DIR}/lib/x64/cublasLt.lib
-    # ${NVIDIA_DIR}/lib/13.1/x64/cudnn.lib
-    ${NVIDIA_8_DIR}/lib/x64/cudnn_adv_infer64_8.lib
-    ${NVIDIA_8_DIR}/lib/x64/cudnn_adv_train64_8.lib
-    ${NVIDIA_8_DIR}/lib/x64/cudnn_cnn_infer64_8.lib
-    ${NVIDIA_8_DIR}/lib/x64/cudnn_cnn_train64_8.lib
-    ${NVIDIA_8_DIR}/lib/x64/cudnn_ops_infer64_8.lib
-    ${NVIDIA_8_DIR}/lib/x64/cudnn_ops_train64_8.lib
-    ${NVIDIA_8_DIR}/lib/x64/cudnn64_8.lib
-
+    ${Torch_DIR}/lib/torch.lib
+    ${Torch_DIR}/lib/torch_cpu.lib
+    ${Torch_DIR}/lib/torch_cuda.lib
+    ${Torch_DIR}/lib/c10.lib
+    ${Torch_DIR}/lib/c10_cuda.lib
+    ${VCPKG_DIR}/lib/fftw3.lib
+    ${VCPKG_DIR}/lib/sndfile.lib
 )
 
+set_property(TARGET SamplerInfiniteGUI PROPERTY CXX_STANDARD 17)
 
-# bring in the cuda libs and includes!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-# bring in the cuda libs and includes!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-# bring in the cuda libs and includes!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# target_include_directories(SamplerInfiniteGUI PRIVATE ${ONNXRUNTIME_DIR}/include)
+# target_include_directories(SamplerInfiniteGUI PRIVATE ${NVIDIATOOLS_DIR}/include)
+# target_include_directories(SamplerInfiniteGUI PRIVATE ${NVIDIA_DIR}/include/13.1)
+# target_include_directories(SamplerInfiniteGUI PRIVATE ${NVIDIA_8_DIR}/include)
+
+
+
+
 
 target_include_directories(SamplerInfiniteGUI PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(SamplerInfiniteGUI PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
-target_link_directories(SamplerInfiniteGUI PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/lib)
+# target_link_directories(SamplerInfiniteGUI PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/lib)
 
-target_link_libraries(SamplerInfiniteGUI PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/lib/fftw3.lib)
-target_link_libraries(SamplerInfiniteGUI PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/lib/sndfile.lib)
+# target_link_libraries(SamplerInfiniteGUI PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/lib/fftw3.lib)
+# target_link_libraries(SamplerInfiniteGUI PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/lib/sndfile.lib)
 
 
 

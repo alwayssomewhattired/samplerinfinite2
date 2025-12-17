@@ -3,10 +3,10 @@
 #include <map>
 #include "AudioFileParse.h"
 #include "FFTProcessor.h"
-#include <onnxruntime_cxx_api.h>
+// #include <onnxruntime_cxx_api.h>
 
 
-namespace Backend {
+namespace AudioBackend {
 	class SamplerInfinite
 	{
 	public:
@@ -31,9 +31,9 @@ namespace Backend {
 		Config config;
 
         void cudaProcessor(const std::string& fileName, const std::vector<double>& file);
-        std::vector<float> runDemucsChunk(Ort::Session& session, const std::vector<float>& stereoInput, int chunkSize);
-        void processorDemucsAudio(const std::vector<float>& left, const std::vector<float>& right,
-                                  size_t totalSamples, Ort::Session& session, const std::string& fileName);
+        // std::vector<float> runDemucsChunk(Ort::Session& session, const std::vector<float>& stereoInput, int chunkSize);
+        // void processorDemucsAudio(const std::vector<float>& left, const std::vector<float>& right,
+        //                           size_t totalSamples, Ort::Session& session, const std::string& fileName);
         AudioFileParse parser;
         FFTProcessor fftProcessor;
 
@@ -43,6 +43,6 @@ namespace Backend {
         // filename to full file-samples vector
         std::unordered_map<std::string, std::vector<double>> sampledInfinites;
 
-        Ort::Env env{ORT_LOGGING_LEVEL_WARNING, "SamplerInfiniteGUI"};
+        // Ort::Env env{ORT_LOGGING_LEVEL_WARNING, "SamplerInfiniteGUI"};
 	};
 }

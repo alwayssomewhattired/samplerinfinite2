@@ -24,7 +24,7 @@ public:
 private:
     Ui::SamplerInfinite *ui;
     Frequencies m_frequencies;
-    Backend::SamplerInfinite m_backend;
+    AudioBackend::SamplerInfinite m_backend;
     std::vector<std::string> filePaths;
     bool m_isAppend = true;
     bool m_isDemucs = false;
