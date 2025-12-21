@@ -30,10 +30,7 @@ namespace AudioBackend {
 		};
 		Config config;
 
-        void cudaProcessor(const std::string& fileName, const std::vector<double>& file);
-        // std::vector<float> runDemucsChunk(Ort::Session& session, const std::vector<float>& stereoInput, int chunkSize);
-        // void processorDemucsAudio(const std::vector<float>& left, const std::vector<float>& right,
-        //                           size_t totalSamples, Ort::Session& session, const std::string& fileName);
+        void runDemucs(const std::vector<std::string>& filePaths);
         AudioFileParse parser;
         FFTProcessor fftProcessor;
 

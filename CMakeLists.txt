@@ -11,6 +11,7 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Qt
 find_package(Qt6 REQUIRED COMPONENTS Widgets)
 
 
@@ -39,6 +40,7 @@ set(PROJECT_SOURCES
         backend/AudioFileParse.cpp
         include/AudioFileParse.h
         poweroftwospinbox.h poweroftwospinbox.cpp
+        demucs/demucsBuild.py
     )
 
 if (MSVC)
@@ -47,11 +49,8 @@ if (MSVC)
     )
 endif()
 
-# this prevents qt keywords from stopping libTorch integration
-# target_compile_definitions(SamplerInfiniteGUI PRIVATE QT_NO_KEYWORDS)
-
 # compile definitions
-add_compile_definitions(USE_CUDA)
+# target_compile_definitions(SamplerInfiniteGUI PRIVATE USE_CUDA)
 
 target_link_libraries(SamplerInfiniteGUI PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
 
@@ -74,26 +73,28 @@ install(TARGETS SamplerInfiniteGUI
 # set(NVIDIATOOLS_DIR "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v11.8")
 # set(NVIDIA_DIR "C:/Program Files/NVIDIA/CUDNN/v9.17")
 # set(NVIDIA_8_DIR "C:/libs/cudnn-windows-x86_64-8.9.7.29_cuda11-archive")
-set(Torch_DIR "C:/libs/libtorch")
+# set(Torch_DIR "C:/libs/libtorch")
 set(VCPKG_DIR "C:/VCPKG/vcpkg/installed/x64-windows")
 
+
+
 target_include_directories(SamplerInfiniteGUI PRIVATE
-    ${Torch_DIR}/include
-    ${Torch_DIR}/include/torch/csrc/api/include
+    # ${Torch_DIR}/include
+    # ${Torch_DIR}/include/torch/csrc/api/include
     ${VCPKG_DIR}/include
 )
 
 target_link_directories(SamplerInfiniteGUI PRIVATE
-    ${Torch_DIR}/lib
+    # ${Torch_DIR}/lib
     ${VCPKG_DIR}/lib
 )
 
 target_link_libraries(SamplerInfiniteGUI PRIVATE
-    ${Torch_DIR}/lib/torch.lib
-    ${Torch_DIR}/lib/torch_cpu.lib
-    ${Torch_DIR}/lib/torch_cuda.lib
-    ${Torch_DIR}/lib/c10.lib
-    ${Torch_DIR}/lib/c10_cuda.lib
+    # ${Torch_DIR}/lib/torch.lib
+    # ${Torch_DIR}/lib/torch_cpu.lib
+    # ${Torch_DIR}/lib/torch_cuda.lib
+    # ${Torch_DIR}/lib/c10.lib
+    # ${Torch_DIR}/lib/c10_cuda.lib
     ${VCPKG_DIR}/lib/fftw3.lib
     ${VCPKG_DIR}/lib/sndfile.lib
 )

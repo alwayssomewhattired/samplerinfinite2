@@ -5,24 +5,11 @@
 #include <qdebug.h>
 #include <qlogging.h>
 #include <QDir>
+#include <QProcess>
 #include <QMessageBox>
+#include <QCoreApplication>
 #include <string>
 #include <filesystem>
-// #include <onnxruntime_cxx_api.h>
-
-// we include these compiler defs before you implement torch.h to prevent qt collision with libtorch
-#ifdef slots
-#undef slots
-#endif
-
-#ifdef signals
-#undef signals
-#endif
-
-#ifdef emit
-#undef emit
-#endif
-#include <torch/torch.h>
 
 
 AudioBackend::SamplerInfinite::SamplerInfinite()
@@ -41,18 +28,59 @@ AudioBackend::SamplerInfinite::~SamplerInfinite(){
 
 };
 
-void AudioBackend::SamplerInfinite::process(const QString& freqs, const std::vector<std::string>& filePaths, const std::map<std::string, double>& freqMap,
-    const std::map<double, std::string>& freqToNote, const std::map<int, std::string>& i_freqToNote,
+void AudioBackend::SamplerInfinite::runDemucs(const std::vector<std::string>& filePaths) {
+    QString baseDir = QCoreApplication::applicationDirPath();
+    QDir dir(baseDir);
+
+    QString pythonPath = dir.filePath("../demucs/venv/Scripts/python.exe");
+    QString scriptPath = dir.filePath("../demucs/demucsBuild.py");
+
+    QProcess process;
+    QStringList arguments;
+    arguments << scriptPath;
+
+    if (filePaths.size() == 0) {
+        for (auto& [k, v] : sampledInfinites) {
+            arguments << QString::fromStdString(k);
+        }
+    } else {
+        for (auto& name : filePaths) {
+            std::filesystem::path p(name);
+            auto songName = p.stem().string();
+            qDebug() << songName;
+            arguments << QString::fromStdString(songName);
+        }
+    }
+
+    process.start(pythonPath, arguments);
+
+    if (!process.waitForStarted()) {
+        qDebug() << "Failed to start demucs script";
+        qDebug() << "QProcess error:" << process.error();
+        qDebug() << "Error string:" << process.errorString();
+        return;
+    }
+
+    process.waitForFinished();
+    QString output = process.readAllStandardOutput();
+    QString error = process.readAllStandardError();
+
+    qDebug() << "output: " << output;
+    qDebug() << "error: " << error;
+}
+
+void AudioBackend::SamplerInfinite::process(const QString& freqs, const std::vector<std::string>& filePaths, const std::map<std::string,
+            double>& freqMap, const std::map<double, std::string>& freqToNote, const std::map<int, std::string>& i_freqToNote,
             const bool& isAppend, const bool& isInterpolate, const bool& isDemucs, const bool& isNonSampled, const int& crossfadeSamples)
 {
     qDebug("processing :)\n");
 
+    for(auto& thingName : filePaths)
+        qDebug() << thingName;
+
     // if nonsampled true, then juce send file to demucs
     if (isNonSampled) {
-        for (auto& song : filePaths) {
-            std::vector<double> audio = parser.readAudioFileAsMono(song);
-            cudaProcessor(song, audio);
-        }
+        runDemucs(filePaths);
 
         qDebug("FINISHED!");
         return;
@@ -136,342 +164,10 @@ void AudioBackend::SamplerInfinite::process(const QString& freqs, const std::vec
         }
     }
 
-    // here we feed out created file into demucs
-    // a function that implements ai percussion removal
-    // pass audio data from finished sampledinfinite into this function
-
-    if (isDemucs) {
-        for (auto& [k, v] : sampledInfinites) {
-            cudaProcessor(k, v);
-        }
-    }
+    runDemucs({});
 
     qDebug("FINISHED!");
 }
-
-
-// struct DemucsIO {
-//     Ort::AllocatedStringPtr inputName;
-//     Ort::AllocatedStringPtr outputName;
-// };
-
-// static DemucsIO& getDemucsIO(Ort::Session& session) {
-//     size_t num_inputs = session.GetInputCount();
-//     for (size_t i = 0; i < num_inputs; ++i) {
-//         Ort::AllocatorWithDefaultOptions allocator;
-//         auto name = session.GetInputNameAllocated(i, allocator);
-
-//         auto typeInfo = session.GetInputTypeInfo(i).GetTensorTypeAndShapeInfo();
-//         auto shape = typeInfo.GetShape();
-
-//         QString shapeStr;
-//         for (size_t j = 0; j < shape.size(); ++j) {
-//             shapeStr += QString::number(shape[j]);
-//             if (j + 1 < shape.size()) shapeStr += ", ";
-//         }
-
-//     }
-
-
-//     static Ort::AllocatorWithDefaultOptions allocator;
-//     static DemucsIO io {
-//         session.GetInputNameAllocated(0, allocator),
-//         session.GetOutputNameAllocated(0, allocator)
-//     };
-//     return io;
-// }
-
-void AudioBackend::SamplerInfinite::cudaProcessor(const std::string& fileName, const std::vector<double>& file) {
-    qDebug() << "CUDA available: "
-              << torch::cuda::is_available() << "\n";
-
-    torch::jit::script::Module demucs;
-
-    // i assume this loads our names demucs model
-    demucs = torch::jit::load("demucs.pt");
-    demucs.to(torch::kCUDA);
-    demucs.eval();
-
-    // this prepares input tensor (as entire file)
-    torch::Tensor input = torch::from_blob(stereoInput.data(), {1, 2, totalSamples}, torch::kFloat32)
-                              .clone()
-                              .to(torch::kCUDA);
-
-    // this runs inference engine
-    torch::NoGradGuard no_grad;
-    auto output = demucs.forward({input}).toTensor();
-
-    // this extracts stems
-    output = output.squeeze(0).cpu();
-    float* out = output.data_ptr<float();
-
-    return;
-
-}
-
-
-// void Backend::SamplerInfinite::cudaProcessor(const std::string& fileName, const std::vector<double>& file) {
-
-//     static Ort::SessionOptions session_options = []{
-//         Ort::SessionOptions opts;
-//         opts.SetIntraOpNumThreads(1);
-//         opts.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
-
-// #ifdef USE_CUDA
-//         OrtCUDAProviderOptions cuda_options{};
-//         cuda_options.device_id = 0;
-//         cuda_options.arena_extend_strategy = 0;
-//         cuda_options.gpu_mem_limit = SIZE_MAX;
-//         cuda_options.cudnn_conv_algo_search = OrtCudnnConvAlgoSearchExhaustive;
-//         cuda_options.do_copy_in_default_stream = 1;
-
-//         session_options.AppendExecutionProvider_CUDA(cuda_options);
-// #endif
-
-
-    //     return opts;
-    // }();
-
-    // std::wstring model_path = L"..\\..\\..\\models\\htdemucs.ort";
-    // static Ort::Session session(env, model_path.c_str(), session_options);
-
-    // std::vector<float> left(file.size());
-    // for (size_t i = 0; i < file.size(); ++i) {
-    //     left[i] = static_cast<float>(file[i]);
-    // }
-    // std::vector<float> right = left;
-
-
-    //
-    //
-    //logging
-    //
-    //
-    //
-
-    // Ort::AllocatorWithDefaultOptions allocator;
-
-    // size_t inputCount = session.GetInputCount();
-    // qDebug() << "Input count:" << inputCount;
-
-    // for (size_t i = 0; i < inputCount; i++) {
-    //     auto name = session.GetInputNameAllocated(i, allocator);
-    //     qDebug() << "Input" << i << ":" << name.get();
-
-    //     auto typeInfo = session.GetInputTypeInfo(i);
-    //     auto tensorInfo = typeInfo.GetTensorTypeAndShapeInfo();
-    //     auto shape = tensorInfo.GetShape();
-
-    //     QString shapeStr = "[";
-    //     for (auto d : shape) {
-    //         shapeStr += QString::number(d) + ",";
-    //     }
-    //     shapeStr += "]";
-    //     qDebug() << "  shape:" << shapeStr;
-    // }
-
-    // size_t outputCount = session.GetOutputCount();
-    // qDebug() << "Output count:" << outputCount;
-
-    // for (size_t i = 0; i < outputCount; i++) {
-    //     auto name = session.GetOutputNameAllocated(i, allocator);
-    //     qDebug() << "Output" << i << ":" << name.get();
-
-    //     auto typeInfo = session.GetOutputTypeInfo(i);
-    //     auto tensorInfo = typeInfo.GetTensorTypeAndShapeInfo();
-    //     auto shape = tensorInfo.GetShape();
-
-    //     QString shapeStr = "[";
-    //     for (auto d : shape) {
-    //         shapeStr += QString::number(d) + ",";
-    //     }
-    //     shapeStr += "]";
-    //     qDebug() << "  shape:" << shapeStr;
-    // }
-
-
-
-    // processorDemucsAudio(left, right, file.size(), session, fileName);
-
-    // return;
-
-// }
-
-// std::vector<float> Backend::SamplerInfinite::runDemucsChunk(Ort::Session& session, const std::vector<float>& stereoInput, int chunkSize) {
-
-//     qDebug("run has runned");
-
-//     std::vector<int64_t> inputShape = {1, 2, chunkSize};
-//     Ort::MemoryInfo memoryInfo = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
-
-//     Ort::Value inputTensor = Ort::Value::CreateTensor<float>(
-//         memoryInfo,
-//         const_cast<float*>(stereoInput.data()),
-//         stereoInput.size(),
-//         inputShape.data(),
-//         inputShape.size()
-//         );
-
-//     DemucsIO& io = getDemucsIO(session);
-
-    // x tensor vvv
-    // this is for streaming demucs, which is not applied...
-
-    // static std::vector<float> xState;
-    // if (xState.empty()) {
-    //     xState.resize(1 * 4 * 4 * 2048 * 336);
-    //     std::fill(xState.begin(), xState.end(), 0.0f);
-    // }
-
-    // // this xShape is no good. 5d is for streaming.
-    // // "4d is used a skip input, which is why they are zeroed out"
-    // std::vector<int64_t> xShape = {1, 4, 4, 2048, 336};
-
-    // Ort::Value xTensor = Ort::Value::CreateTensor<float>(
-    //     memoryInfo,
-    //     xState.data(),
-    //     xState.size(),
-    //     xShape.data(),
-    //     xShape.size()
-    //     );
-
-
-
-
-//     std::vector<float> xState(1 * 4 * 2048 * 336, 0.0f);
-//     std::vector<int64_t> xShape = {1, 4, 2048, 336};
-
-//     Ort::Value xTensor = Ort::Value::CreateTensor<float>(
-//         memoryInfo,
-//         xState.data(),
-//         xState.size(),
-//         xShape.data(),
-//         xShape.size()
-//         );
-
-//     // can I reuse my names like this ???
-//     const char* inputNames[] = { "input", "x" };
-//     const char* outputNames[] = { "output", "add_67" };
-
-//     std::vector<Ort::Value> inputTensors;
-//     inputTensors.push_back(std::move(inputTensor));  // must use std::move
-//     inputTensors.push_back(std::move(xTensor));
-
-//     auto outputTensors = session.Run(
-//         Ort::RunOptions{nullptr},
-//         inputNames,
-//         inputTensors.data(),   // pointer to first element
-//         inputTensors.size(),   // number of inputs
-//         outputNames,
-//         2                     // number of outputs
-//         );
-
-
-//     float* audioOut = outputTensors[1].GetTensorMutableData<float>();
-
-
-//     // gets audio shape
-//     auto audioInfo = outputTensors[1].GetTensorTypeAndShapeInfo();
-//     auto shape = audioInfo.GetShape();
-//     int64_t T = shape[3];
-
-//     // a center-crop
-//     int64_t offset = (T - chunkSize) / 2;
-
-//     std::vector<float> result(4 * 2 * chunkSize);
-
-//     for (int s = 0; s < 4; ++s) {
-//         for (int c = 0; c < 2; ++c) {
-//             float* src = audioOut + s * (2 * T) + c * T + offset;
-//             float* dst = result.data() + s * (2 * chunkSize) + c * chunkSize;
-
-//             std::memcpy(dst, src, chunkSize * sizeof(float));
-//         }
-//     }
-
-//     return result;
-
-// }
-
-// void Backend::SamplerInfinite::processorDemucsAudio(const std::vector<float>& left, const std::vector<float>& right,
-//                                                     size_t totalSamples, Ort::Session& session, const std::string& fileName) {
-
-//     const int chunkSize = 343980;
-//     const int hopSize   = chunkSize / 2;
-
-//     std::vector<float> stems[4][2];
-//     for (int s = 0; s < 4; ++s)
-//         for (int c = 0; c < 2; ++c)
-//             stems[s][c].assign(totalSamples, 0.0f);
-
-//     std::vector<float> input(2 * chunkSize, 0.0f);
-
-//     for (int start = 0; start < static_cast<int>(totalSamples); start += hopSize) {
-
-//         // fill input (zero-padded)
-//         std::fill(input.begin(), input.end(), 0.0f);
-
-//         int copyLength = std::min(chunkSize, static_cast<int>(totalSamples) - start);
-//         for (int i = 0; i < copyLength; ++i) {
-//             input[i]             = left[start + i];
-//             input[i + chunkSize] = right[start + i];
-//         }
-
-//         // run Demucs
-//         auto output = runDemucsChunk(session, input, chunkSize);
-
-//         float* out = output.data(); // [4][2][chunkSize]
-
-//         // weight for normalizing overlapped regions
-//         std::vector<float> weight(totalSamples, 0.0f);
-
-//         // rectangular overlap-add
-//         for (int i = 0; i < copyLength; ++i) {
-//             int idx = start + i;
-//             if (idx >= totalSamples) continue;
-
-//             for (int s = 0; s < 4; ++s) {
-//                 stems[s][0][idx] += out[s*2*chunkSize + i];
-//                 stems[s][1][idx] += out[s*2*chunkSize + chunkSize + i];
-//             }
-//             // accumulates weight
-//             weight[idx] += 1.0f;
-//         }
-
-//         // normalizes overlapped regions using weight
-//         for (int i = 0; i < totalSamples; ++i) {
-//             if (weight[i] > 0.0f)
-//                 for (int s = 0; s < 4; ++s) {
-//                     stems[s][0][i] /= weight[i];
-//                     stems[s][1][i] /= weight[i];
-//                 }
-//         }
-//     }
-
-
-//     // write files
-//     for (int s = 0; s < 4; ++s) {
-//         std::vector<double> mono(totalSamples);
-//         for (size_t i = 0; i < totalSamples; ++i)
-//             mono[i] = 0.5 * (stems[s][0][i] + stems[s][1][i]);
-
-
-//         static int count = 0;
-//         std::string productName;
-
-//         if (fileName.find_last_of('_') == std::string::npos) {
-//             productName = "noName" + std::to_string(count) + ".wav";
-//         } else {
-//             size_t underscorePos = fileName.find_last_of('_');
-
-//             std::string base = fileName.substr(0, underscorePos);
-//             std::string ext = fileName.substr(underscorePos);
-//             productName = base + std::to_string(count) + ext;
-//         }
-//         parser.writeWavFile(mono, productName);
-//         count++;
-//     }
-// }
 
 void AudioBackend::SamplerInfinite::setFreqStrength(double freqStrength) {m_freqStrength = freqStrength;}
 
