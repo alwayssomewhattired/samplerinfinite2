@@ -29,11 +29,14 @@ AudioBackend::SamplerInfinite::~SamplerInfinite(){
 };
 
 void AudioBackend::SamplerInfinite::runDemucs(const std::vector<std::string>& filePaths) {
-    QString baseDir = QCoreApplication::applicationDirPath();
-    QDir dir(baseDir);
+    QDir dir(QCoreApplication::applicationDirPath());
 
-    QString pythonPath = dir.filePath("../demucs/venv/Scripts/python.exe");
-    QString scriptPath = dir.filePath("../demucs/demucsBuild.py");
+    dir.cdUp(); // Debug
+    dir.cdUp(); // diy_msvc-Debug
+    dir.cdUp(); // build
+
+    QString pythonPath = dir.filePath("demucs/venv/Scripts/python.exe");
+    QString scriptPath = dir.filePath("demucs/demucsBuild.py");
 
     QProcess process;
     QStringList arguments;
@@ -45,10 +48,8 @@ void AudioBackend::SamplerInfinite::runDemucs(const std::vector<std::string>& fi
         }
     } else {
         for (auto& name : filePaths) {
-            std::filesystem::path p(name);
-            auto songName = p.stem().string();
-            qDebug() << songName;
-            arguments << QString::fromStdString(songName);
+            qDebug() << QString::fromStdString(name);
+            arguments << QString::fromStdString(name);
         }
     }
 
@@ -171,7 +172,7 @@ void AudioBackend::SamplerInfinite::process(const QString& freqs, const std::vec
 
 void AudioBackend::SamplerInfinite::setFreqStrength(double freqStrength) {m_freqStrength = freqStrength;}
 
-void AudioBackend::SamplerInfinite::setOutputDirectory(std::string outputDirectory) {m_outputDirectory = outputDirectory;}
+void AudioBackend::SamplerInfinite::setOutputDirectory(const std::string& outputDirectory) {m_outputDirectory = outputDirectory;}
 
 
 

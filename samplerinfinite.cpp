@@ -29,8 +29,13 @@ SamplerInfinite::SamplerInfinite(QWidget *parent)
         cursor.movePosition(QTextCursor::End);
         cursor.insertText(filePath + "\n" + "\n", format);
 
-        filePaths.push_back(filePath.toStdString());
+        qDebug() << "filePath: " << filePath;
+        static_assert(std::is_same_v<decltype(filePaths)::value_type, std::string>);
 
+        filePaths.push_back(filePath.toStdString());
+        for (auto& k : filePaths) {
+            qDebug() << "in vec: " << QString::fromStdString(k);
+        }
         ui->fileBrowser->verticalScrollBar()->setValue(ui->fileBrowser->verticalScrollBar()->maximum());
     });
 

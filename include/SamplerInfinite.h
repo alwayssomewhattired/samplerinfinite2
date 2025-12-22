@@ -19,7 +19,7 @@ namespace AudioBackend {
 
         void setFreqStrength(double freqStrength);
 
-        void setOutputDirectory(std::string outputDirectory);
+        void setOutputDirectory(const std::string& outputDirectory);
 
 	private:
 		struct Config {
