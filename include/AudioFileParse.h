@@ -2,6 +2,7 @@
 #define AUDIOFILEPARSE_H
 #include <vector>
 #include <string>
+#include <filesystem>
 
 class AudioFileParse
 {
@@ -9,7 +10,7 @@ public:
     AudioFileParse();
     ~AudioFileParse();
 
-    std::vector<double> readAudioFileAsMono(const std::string& fileName);
+    std::vector<double> readAudioFileAsMono(const std::filesystem::path& fileName);
     // void applyHanningWindow();
 
     bool writeWavFile(const std::vector<double>& samples, const std::string& fileName);

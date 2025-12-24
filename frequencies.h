@@ -10,14 +10,14 @@ public:
 
     const QList<QString>& getterNotes() const;
     const QList<double>& getterFreqs() const;
-    const std::map<std::string, double>& getterNoteToFreq() const;
-    const std::map<double, std::string>& getFreqToNote() const;
-    const std::map<int, std::string>& get_i_freqToNote() const;
+    const QMap<QString, double>& getterNoteToFreq() const;
+    const QMap<double, QString>& getFreqToNote() const;
+    const QMap<int, QString>& get_i_freqToNote() const;
 
 private:
-    std::map<std::string, double> m_noteToFreq;
-    std::map<double, std::string> m_freqToNote;
-    std::map<int, std::string> m_i_freqToNote;
+    QMap<QString, double> m_noteToFreq;
+    QMap<double, QString> m_freqToNote;
+    QMap<int, QString> m_i_freqToNote;
     QList<QString> m_notes;
     QList<double> m_freqs;
 

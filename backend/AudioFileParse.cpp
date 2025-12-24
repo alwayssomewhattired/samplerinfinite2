@@ -5,6 +5,7 @@
 #include <QtLogging>
 #include <qDebug>
 #include <QFileInfo>
+#include <QString>
 
 AudioFileParse::AudioFileParse(){}
 
@@ -19,16 +20,18 @@ size_t AudioFileParse::size() const {
     return m_audioData.size();
 }
 
-std::vector<double> AudioFileParse::readAudioFileAsMono(const std::string& fileName)
+std::vector<double> AudioFileParse::readAudioFileAsMono(const std::filesystem::path& inputDir)
 {
     SF_INFO sfInfo = { 0 };
-    SNDFILE* inFile = sf_open(fileName.c_str(), SFM_READ, &sfInfo);
+
+    QString qPath = QString::fromStdWString(inputDir.wstring());
+    QByteArray encoded = QFile::encodeName(qPath);
+
+    SNDFILE* inFile = sf_open(encoded.constData(), SFM_READ, &sfInfo);
 
     if (!inFile)
     {
         qDebug() << "libsndfile error: " << sf_strerror(NULL);
-        qDebug() << "Error opening file: " << fileName.c_str() << "\n";
-        std::remove(fileName.c_str());
         return {};
     }
 
@@ -42,7 +45,6 @@ std::vector<double> AudioFileParse::readAudioFileAsMono(const std::string& fileN
 
     if (sf_read_double(inFile, rawData.data(), rawData.size()) <= 0)
     {
-        qDebug() << "Error opening audio data from: " << fileName << "\n";
         sf_close(inFile);
         return {};
     }
@@ -68,18 +70,17 @@ std::vector<double> AudioFileParse::readAudioFileAsMono(const std::string& fileN
     }
 }
 
-bool AudioFileParse::writeWavFile(const std::vector<double>& samples, const std::string& fileName)
+bool AudioFileParse::writeWavFile(const std::vector<double>& samples, const std::string& outputDir)
 {
     SF_INFO sf_info = { 0 };
     sf_info.channels = 1;
     sf_info.samplerate = 44100;
     sf_info.format = SF_FORMAT_WAV | SF_FORMAT_PCM_16;
 
-    SNDFILE* file = sf_open(fileName.c_str(), SFM_WRITE, &sf_info);
+    SNDFILE* file = sf_open(outputDir.c_str(), SFM_WRITE, &sf_info);
     if (!file)
     {
-        qDebug() << "Error opening file: " << fileName << "\n";
-        std::remove(fileName.c_str());
+        qDebug() << "Error opening file: " << outputDir << "\n";
         return false;
     }
 
@@ -88,33 +89,32 @@ bool AudioFileParse::writeWavFile(const std::vector<double>& samples, const std:
 
     if (framesWritten != expectedFrames)
     {
-        qDebug() << "Error writing to file: " << fileName << "\n"
+        qDebug() << "Error writing to file: " << outputDir << "\n"
                  << "Frames expected: " << expectedFrames
                  << ", frames written: " << framesWritten << "\n";
-        std::remove(fileName.c_str());
         return false;
     }
 
     if (sf_close(file) != 0)
     {
-        qDebug() << "Error closing file: " << fileName << "\n";
+        qDebug() << "Error closing file: " << outputDir << "\n";
     }
-    qDebug() << "file name!: " << fileName;
+    qDebug() << "file name!: " << outputDir;
     return true;
 }
 
-bool AudioFileParse::appendWavFile(const std::vector<double>& samples, const std::string& fileName) {
+bool AudioFileParse::appendWavFile(const std::vector<double>& samples, const std::string& outputDir) {
     SF_INFO sfinfo = { };
     sfinfo.channels = 1;
     sfinfo.samplerate = 44100;
     sfinfo.format = SF_FORMAT_WAV | SF_FORMAT_PCM_16;
 
-    bool exists = QFileInfo(QString::fromStdString(fileName)).exists();
+    bool exists = QFileInfo(QString::fromStdString(outputDir)).exists();
 
     SNDFILE* sndfile = nullptr;
 
     if (exists) {
-        sndfile = sf_open(fileName.c_str(), SFM_RDWR, &sfinfo);
+        sndfile = sf_open(outputDir.c_str(), SFM_RDWR, &sfinfo);
         if (!sndfile) {
             qDebug() << "Error opening existing file: " << sf_strerror(NULL) << "\n";
             return false;
@@ -122,8 +122,7 @@ bool AudioFileParse::appendWavFile(const std::vector<double>& samples, const std
 
         sf_seek(sndfile, 0, SF_SEEK_END);
     } else {
-
-        sndfile = sf_open(fileName.c_str(), SFM_WRITE, &sfinfo);
+        sndfile = sf_open(outputDir.c_str(), SFM_WRITE, &sfinfo);
         if (!sndfile) {
             qDebug() << "Error creating file: " << sf_strerror(NULL) << "\n";
             return false;
@@ -140,7 +139,7 @@ bool AudioFileParse::appendWavFile(const std::vector<double>& samples, const std
     }
 
     sf_close(sndfile);
-
+    qDebug("An we are running");
     return true;
 }
 

@@ -1,5 +1,6 @@
 from demucs import pretrained
 from demucs.apply import apply_model
+from pathlib import Path
 import os
 import torch
 import soundfile as sf
@@ -15,11 +16,13 @@ model = pretrained.get_model("htdemucs")  # can also use 'demucs' or 'htdemucs_f
 model = model.to(device)
 model.eval()
 
-filenames = sys.argv[1:]
+outputDir = sys.argv[1]
+filenames = sys.argv[2:]
 
-for name in filenames:
+for audio_path in filenames:
 
-    audio_path = name
+    song_name = Path(audio_path).stem
+
     data, sr = sf.read(audio_path)  # waveform shape: (channels, samples)
 
     # Demucs expects (batch, channels, samples)
@@ -40,7 +43,8 @@ for name in filenames:
         sources = apply_model(model, waveform, shifts=1, split=True, progress=True)
         # sources shape: (batch, n_sources, channels, samples)
 
-    output_dir = "separated_stems"
+    output_dir = outputDir + "/" + "sampledinfinites" + "/" + song_name
+
     os.makedirs(output_dir, exist_ok=True)
 
     sources = sources.squeeze(0).cpu()  # remove batch dimension
@@ -49,4 +53,4 @@ for name in filenames:
         stem = sources[i].cpu()  # shape: (channels, samples)
         # Convert to numpy array with shape (samples, channels)
         stem_np = stem.numpy().T
-        sf.write(os.path.join(output_dir, f"{name}.wav"), stem_np, sr)
+        sf.write(os.path.join(output_dir, f"{name}{song_name}.wav"), stem_np, sr)

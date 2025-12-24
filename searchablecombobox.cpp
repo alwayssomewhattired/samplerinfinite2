@@ -2,6 +2,8 @@
 #include <QVBoxLayout>
 #include <QLineEdit>
 #include <QListWidget>
+#include <qDebug>
+#include <QtLogging>
 #include "frequencies.h"
 
 SearchableComboBox::SearchableComboBox(QWidget *parent) : QWidget(parent)
@@ -12,6 +14,9 @@ SearchableComboBox::SearchableComboBox(QWidget *parent) : QWidget(parent)
     listWidget = new QListWidget(this);
     listWidget->addItems({"all"});
     listWidget->addItems(freq.getterNotes());
+    for (auto& k : freq.getterNotes()) {
+        qDebug() << k;
+    }
 
     layout->addWidget(searchBox);
     layout->addWidget(listWidget);

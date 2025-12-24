@@ -50,7 +50,6 @@ void FFTProcessor::compute(const std::vector<double>& audioData, std::vector<dou
         qDebug() << "Source Audio file too large for type conversion" << "\n" "Recevied size: " << audioData.size() << "\n";
         return;
     }
-
     int maxChunkSize = static_cast<int>(audioData.size());
     int numChunks = (maxChunkSize + m_chunkSize - 1) / m_chunkSize;
 
@@ -73,6 +72,7 @@ void FFTProcessor::compute(const std::vector<double>& audioData, std::vector<dou
 
         m_magnitudeChunks.push_back(std::move(magnitudes));
 
+        // target Freuqency is empty?
         for (double freq: targetFrequency)
         {
             int controlNoteBin = static_cast<int>(freq * m_chunkSize / m_sampleRate);
@@ -165,9 +165,7 @@ void FFTProcessor::storeChunkIfProminent(const std::vector<double>& samples, int
     {
         double val = std::clamp(samples[i], -1.0, 1.0);
 
-
         m_sampleStorage[targetFrequencyi].push_back(val);
-
 
         if (isInterpolate && m_sampleStorage.at(targetFrequencyi).size() > 0) {
 

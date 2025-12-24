@@ -28,7 +28,7 @@ AudioBackend::SamplerInfinite::~SamplerInfinite(){
 
 };
 
-void AudioBackend::SamplerInfinite::runDemucs(const std::vector<std::string>& filePaths) {
+void AudioBackend::SamplerInfinite::runDemucs(const std::vector<std::filesystem::path>& filePaths) {
     QDir dir(QCoreApplication::applicationDirPath());
 
     dir.cdUp(); // Debug
@@ -41,15 +41,16 @@ void AudioBackend::SamplerInfinite::runDemucs(const std::vector<std::string>& fi
     QProcess process;
     QStringList arguments;
     arguments << scriptPath;
+    arguments << m_outputDirectory;
 
     if (filePaths.size() == 0) {
-        for (auto& [k, v] : sampledInfinites) {
+        for (auto& [k, v] : m_sampledInfinites) {
             arguments << QString::fromStdString(k);
         }
     } else {
         for (auto& name : filePaths) {
-            qDebug() << QString::fromStdString(name);
-            arguments << QString::fromStdString(name);
+            QString path = QString::fromStdWString(name.wstring());
+            arguments << path;
         }
     }
 
@@ -70,19 +71,15 @@ void AudioBackend::SamplerInfinite::runDemucs(const std::vector<std::string>& fi
     qDebug() << "error: " << error;
 }
 
-void AudioBackend::SamplerInfinite::process(const QString& freqs, const std::vector<std::string>& filePaths, const std::map<std::string,
+void AudioBackend::SamplerInfinite::process(const QString& freqs, const std::vector<std::filesystem::path>& paths, const std::map<std::string,
             double>& freqMap, const std::map<double, std::string>& freqToNote, const std::map<int, std::string>& i_freqToNote,
             const bool& isAppend, const bool& isInterpolate, const bool& isDemucs, const bool& isNonSampled, const int& crossfadeSamples)
 {
     qDebug("processing :)\n");
 
-    for(auto& thingName : filePaths)
-        qDebug() << thingName;
-
     // if nonsampled true, then juce send file to demucs
     if (isNonSampled) {
-        runDemucs(filePaths);
-
+        runDemucs(paths);
         qDebug("FINISHED!");
         return;
     }
@@ -108,25 +105,21 @@ void AudioBackend::SamplerInfinite::process(const QString& freqs, const std::vec
     if (!slicedFreq.empty())
         parts.push_back(freqMap.at(slicedFreq));
 
-
     // 1. each song
-    for (const std::string& song : filePaths)
+    for (const std::filesystem::path& song : paths)
     {
-        std::filesystem::path p(song);
-        auto songName = p.stem().string();
+        // std::filesystem::path p(song);
+        auto songName = song.stem().string();
 
         if (isAppend)
             songName = "appendage";
 
         FFTProcessor fftProcessor(config.chunkSize, config.sampleRate, m_freqStrength);
-
         parser.readAudioFileAsMono(song);
 
         int n = parser.size();
-
         int num_chunks = (n + config.chunkSize - 1) / config.chunkSize;
 
-        // this window is pointless vvv possibly make a control for it... possibly eat mushroom and think
         // parser.applyHanningWindow();
 
         fftProcessor.compute(parser.getAudioData(), parts, config.productDurationSamples, isInterpolate, crossfadeSamples);
@@ -141,38 +134,47 @@ void AudioBackend::SamplerInfinite::process(const QString& freqs, const std::vec
 
         for (auto& [k, processedSamples] : fftProcessor.getSampleStorage()) {
 
-
-            // std::string freq = freqToNote.at(parts[i]);
-            std::string freq = i_freqToNote.at(k);
+            std::string freq;
+            auto it = i_freqToNote.find(k);
+            if (it == i_freqToNote.end()) {
+                qDebug() << "Missing key:" << k;
+                std::terminate();
+            } else {
+                freq = it->second;
+            }
             // this inner loop is terrible. could easily mismatch frequency to samples vvv
-            // std::filesystem::path dirPath = m_outputDirectory + '/' + freq;
-            std::filesystem::path dirPath = m_outputDirectory + '/' + freq;
-            std::filesystem::create_directory(dirPath);
+            qDebug("fuck");
+            std::filesystem::path dirPath = m_outputDirectory.toStdString() +
+                                            '/' +  "sampledinfinites" + '/' + freq + "/" + songName + "ohyah" + '_' + freq + ".wav";
+            std::filesystem::create_directories(dirPath.parent_path());
+            qDebug("you");
+
             // make a control that chooses an existing audio file to append new audio to
             // for now, make the choice automatically the 'appendage'.wav
-            std::string finalProductName = m_outputDirectory + '/' + freq + "/" + songName + "ohyah" + '_' + freq + ".wav";
+            std::string finalProductName = m_outputDirectory.toStdString() +
+                                           '/' +  "sampledinfinites" + '/' + freq + "/" + songName + "ohyah" + '_' + freq + ".wav";
             qDebug() << "final product name : " << finalProductName << "\n";
             qDebug() << "freq : " << freq << "\n";
             if (isAppend) {
                 parser.appendWavFile(processedSamples, finalProductName);
-                auto& dest = sampledInfinites[finalProductName];
+                auto& dest = m_sampledInfinites[finalProductName];
                 dest.insert(dest.end(), processedSamples.begin(), processedSamples.end());
             }
             else
                 parser.writeWavFile(processedSamples, finalProductName);
-                sampledInfinites[finalProductName] = processedSamples;
+                m_sampledInfinites[finalProductName] = processedSamples;
             i++;
         }
     }
-
-    runDemucs({});
+    if (isDemucs)
+        runDemucs({});
 
     qDebug("FINISHED!");
 }
 
 void AudioBackend::SamplerInfinite::setFreqStrength(double freqStrength) {m_freqStrength = freqStrength;}
 
-void AudioBackend::SamplerInfinite::setOutputDirectory(const std::string& outputDirectory) {m_outputDirectory = outputDirectory;}
+void AudioBackend::SamplerInfinite::setOutputDirectory(QString outputDirectory) {m_outputDirectory = outputDirectory;}
 
 
 

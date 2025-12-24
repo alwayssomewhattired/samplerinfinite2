@@ -8,7 +8,7 @@ set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Qt
@@ -43,14 +43,6 @@ set(PROJECT_SOURCES
         demucs/demucsBuild.py
     )
 
-if (MSVC)
-    set_property(TARGET SamplerInfiniteGUI PROPERTY
-        MSVC_RUNTIME_LIBRARY "MultiThreadedDLL"
-    )
-endif()
-
-# compile definitions
-# target_compile_definitions(SamplerInfiniteGUI PRIVATE USE_CUDA)
 
 target_link_libraries(SamplerInfiniteGUI PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
 
@@ -69,55 +61,29 @@ install(TARGETS SamplerInfiniteGUI
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
-# set(ONNXRUNTIME_DIR "C:/libs/onnxruntime-win-x64-gpu-1.17.3")
-# set(NVIDIATOOLS_DIR "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v11.8")
-# set(NVIDIA_DIR "C:/Program Files/NVIDIA/CUDNN/v9.17")
-# set(NVIDIA_8_DIR "C:/libs/cudnn-windows-x86_64-8.9.7.29_cuda11-archive")
-# set(Torch_DIR "C:/libs/libtorch")
 set(VCPKG_DIR "C:/VCPKG/vcpkg/installed/x64-windows")
 
 
 
 target_include_directories(SamplerInfiniteGUI PRIVATE
-    # ${Torch_DIR}/include
-    # ${Torch_DIR}/include/torch/csrc/api/include
     ${VCPKG_DIR}/include
 )
 
 target_link_directories(SamplerInfiniteGUI PRIVATE
-    # ${Torch_DIR}/lib
     ${VCPKG_DIR}/lib
 )
 
 target_link_libraries(SamplerInfiniteGUI PRIVATE
-    # ${Torch_DIR}/lib/torch.lib
-    # ${Torch_DIR}/lib/torch_cpu.lib
-    # ${Torch_DIR}/lib/torch_cuda.lib
-    # ${Torch_DIR}/lib/c10.lib
-    # ${Torch_DIR}/lib/c10_cuda.lib
     ${VCPKG_DIR}/lib/fftw3.lib
     ${VCPKG_DIR}/lib/sndfile.lib
 )
 
-set_property(TARGET SamplerInfiniteGUI PROPERTY CXX_STANDARD 17)
-
-# target_include_directories(SamplerInfiniteGUI PRIVATE ${ONNXRUNTIME_DIR}/include)
-# target_include_directories(SamplerInfiniteGUI PRIVATE ${NVIDIATOOLS_DIR}/include)
-# target_include_directories(SamplerInfiniteGUI PRIVATE ${NVIDIA_DIR}/include/13.1)
-# target_include_directories(SamplerInfiniteGUI PRIVATE ${NVIDIA_8_DIR}/include)
-
-
+set_property(TARGET SamplerInfiniteGUI PROPERTY CXX_STANDARD 20)
 
 
 
 target_include_directories(SamplerInfiniteGUI PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(SamplerInfiniteGUI PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-
-# target_link_directories(SamplerInfiniteGUI PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/lib)
-
-# target_link_libraries(SamplerInfiniteGUI PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/lib/fftw3.lib)
-# target_link_libraries(SamplerInfiniteGUI PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/lib/sndfile.lib)
-
 
 
 if(QT_VERSION_MAJOR EQUAL 6)

@@ -30,12 +30,8 @@ SamplerInfinite::SamplerInfinite(QWidget *parent)
         cursor.insertText(filePath + "\n" + "\n", format);
 
         qDebug() << "filePath: " << filePath;
-        static_assert(std::is_same_v<decltype(filePaths)::value_type, std::string>);
 
-        filePaths.push_back(filePath.toStdString());
-        for (auto& k : filePaths) {
-            qDebug() << "in vec: " << QString::fromStdString(k);
-        }
+        filePaths.push_back(filePath);
         ui->fileBrowser->verticalScrollBar()->setValue(ui->fileBrowser->verticalScrollBar()->maximum());
     });
 
@@ -65,9 +61,46 @@ SamplerInfinite::SamplerInfinite(QWidget *parent)
     auto *startButton = ui->startButton;
 
     connect(startButton, &QPushButton::clicked, this, [this, freqDisplayWidget](){
-        m_backend.process(freqDisplayWidget->toPlainText(), filePaths, m_frequencies.getterNoteToFreq(), m_frequencies.getFreqToNote(),
-        m_frequencies.get_i_freqToNote(), m_isAppend, m_isInterpolate, m_isDemucs, m_isNonSampled, m_chunkCrossfadeSamples);
+        // conversions
+        std::map<std::string, double> stdMap;
+        auto& qMap = m_frequencies.getterNoteToFreq();
+        for (auto it = qMap.constBegin(); it != qMap.constEnd(); ++it) {
+            stdMap.insert({it.key().toStdString(), it.value()});
+        }
 
+        std::map<double, std::string> freqToNote;
+        auto& qFreqToNote = m_frequencies.getFreqToNote();
+        for (auto it = qFreqToNote.constBegin(); it != qFreqToNote.constEnd(); ++it) {
+            freqToNote.insert({it.key(), it.value().toStdString()});
+        }
+
+        std::map<int, std::string> iFreqToNote;
+        auto& qIFreqToNote = m_frequencies.get_i_freqToNote();
+        for (auto it = qIFreqToNote.constBegin(); it != qIFreqToNote.constEnd(); ++it) {
+            iFreqToNote.insert({it.key(), it.value().toStdString()});
+        }
+
+        const std::vector<QString> localPaths = filePaths;
+
+        std::vector<std::filesystem::path> encodedPaths;
+        encodedPaths.reserve(localPaths.size());
+
+        for (const QString& file : localPaths) {
+            QByteArray utf8 = file.toUtf8();
+            encodedPaths.emplace_back(std::string(utf8.constData(), utf8.size()));
+        }
+
+        for (const auto& p : encodedPaths) {
+            const auto& u8 = p.u8string();
+            qDebug() << QString::fromUtf8(
+                reinterpret_cast<const char*>(u8.data()),
+                static_cast<int>(u8.size())
+                );
+        }
+
+
+        m_backend.process(freqDisplayWidget->toPlainText(), encodedPaths, stdMap, freqToNote,
+        iFreqToNote, m_isAppend, m_isInterpolate, m_isDemucs, m_isNonSampled, m_chunkCrossfadeSamples);
     });
 
     auto* freqStrengthSlider = ui->freqStrengthSlider;
@@ -90,7 +123,7 @@ SamplerInfinite::SamplerInfinite(QWidget *parent)
         if (!dir.isEmpty()) {
             qDebug() << "Selected directory: " << dir;
             outputDirectoryLabel->setText(dir);
-            m_backend.setOutputDirectory(dir.toStdString());
+            m_backend.setOutputDirectory(dir);
         }
 
     });
