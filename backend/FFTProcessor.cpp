@@ -29,15 +29,58 @@ FFTProcessor::~FFTProcessor()
     }
 }
 
-bool FFTProcessor::isProminentPeak(const std::vector<double>& vec, double targetFrequency, double freqStrength)
+bool FFTProcessor::isProminentPeak(const std::vector<double>& currentChunk, double targetFrequencyMagnitude, double freqStrength)
 {
-    if (targetFrequency == 0) return false;
+    if (targetFrequencyMagnitude == 0) return false;
 
-    double maxVal = *std::max_element(vec.begin(), vec.end());
-    // qDebug() << "target frequency: " << targetFrequency;
-    // qDebug() << "current frequency: " << maxVal;
-    return targetFrequency >= freqStrength * maxVal;
+    double maxVal = *std::max_element(currentChunk.begin(), currentChunk.end());
+
+    return targetFrequencyMagnitude >= freqStrength * maxVal;
 }
+
+double FFTProcessor::aWeightLinear(double f) {
+    double f2 = f * f;
+
+    double ra =
+        (12200.0 * 12200.0 * f2 * f2) /
+        ((f2 + 20.6 * 20.6) *
+         (f2 + 12200.0 * 12200.0) *
+         std::sqrt((f2 + 107.7 * 107.7) *
+                   (f2 + 737.9 * 737.9)));
+
+    double AdB = 20.0 * std::log10(ra) + 2.0;
+    return std::pow(10.0, AdB / 20.0); // amplitude gain
+}
+
+std::vector<double>& FFTProcessor::smoother(std::vector<double>& magnitudes, std::vector<double>& smoothed) {
+    // = 1/6 octave
+    constexpr double kBandwidth = 0.12;
+
+    double binHz = (double)m_sampleRate / m_fftSize;
+
+    for (int i = 0; i < m_fftSize / 2; ++i) {
+        double f = m_binFreq[i];
+
+        int halfWidthBins = static_cast<int>((f * kBandwidth) / binHz);
+        if (halfWidthBins < 1) halfWidthBins = 1;
+
+        double sum = 0.0;
+        int count = 0;
+
+        int start = std::max(1, i - halfWidthBins);
+        int end = std::min((int)m_fftSize / 2 - 1, i + halfWidthBins);
+
+        for (int j = start; j <= end; ++j) {
+            sum += magnitudes[j];
+            ++count;
+        }
+
+        smoothed[i] = sum / count;
+    }
+
+    return smoothed;
+}
+
 void FFTProcessor::compute(const std::vector<double>& audioData, std::vector<double> targetFrequency, const int productLength,
     const bool& isInterpolate, const int& crossfadeSamples)
 {
@@ -53,6 +96,16 @@ void FFTProcessor::compute(const std::vector<double>& audioData, std::vector<dou
     int maxChunkSize = static_cast<int>(audioData.size());
     int numChunks = (maxChunkSize + m_chunkSize - 1) / m_chunkSize;
 
+    // this precomputes stuff
+    m_binFreq.resize(m_fftSize);
+    m_aWeight.resize(m_fftSize);
+    for(int i = 0; i < m_fftSize; ++i) {
+        double f = (double)i * m_sampleRate / m_fftSize;
+        m_binFreq[i] = f;
+        m_aWeight[i] = aWeightLinear(f);
+    }
+
+
     for (int chunk = 0; chunk < numChunks; ++chunk)
     {
         std::fill(m_realInput, m_realInput + m_chunkSize, 0);
@@ -64,15 +117,27 @@ void FFTProcessor::compute(const std::vector<double>& audioData, std::vector<dou
 
         fftw_execute(m_plan);
 
+        // changed to 'power' instead of magnitude
         std::vector<double> magnitudes(m_fftSize);
         for (int i = 0; i < m_fftSize; ++i)
         {
-            magnitudes[i] = std::sqrt(m_complexOutput[i][0] * m_complexOutput[i][0] + m_complexOutput[i][1] * m_complexOutput[i][1]);
+            double re = m_complexOutput[i][0];
+            double im = m_complexOutput[i][1];
+
+            double power = re*re + im*im;
+
+            power *= m_aWeight[i] * m_aWeight[i];
+
+            magnitudes[i] = power;
+            // magnitudes[i] = std::sqrt(m_complexOutput[i][0] * m_complexOutput[i][0] + m_complexOutput[i][1] * m_complexOutput[i][1]);
         }
 
-        m_magnitudeChunks.push_back(std::move(magnitudes));
+        std::vector<double> smoothed(m_fftSize / 2, 0.0);
+        smoothed = smoother(magnitudes, smoothed);
 
-        // target Freuqency is empty?
+        m_magnitudeChunks.push_back(std::move(smoothed));
+        // m_magnitudeChunks.push_back(std::move(magnitudes));
+
         for (double freq: targetFrequency)
         {
             int controlNoteBin = static_cast<int>(freq * m_chunkSize / m_sampleRate);
@@ -106,7 +171,6 @@ const std::vector<double> FFTProcessor::interpolateAudio(const double& beginSamp
 void FFTProcessor::storeChunkIfProminent(const std::vector<double>& samples, int counter, double magnitude, double targetFrequency,
                                          const int productLength, const bool& isInterpolate, const int& crossfadeSamples)
 {
-    qDebug() << "interpolate?: " << isInterpolate << "\n";
     int start = counter * m_chunkSize;
     int end = std::min(start + m_chunkSize, static_cast<int>(samples.size()));
     int targetFrequencyi = std::round(targetFrequency);

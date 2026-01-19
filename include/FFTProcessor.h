@@ -28,6 +28,11 @@ private:
     * @param ratio ***NEEDS CONTROL***
     */
     bool isProminentPeak(const std::vector<double>& vec, double targetFrequency, double freqStrength);
+
+    double aWeightLinear(double f);
+
+    std::vector<double>& smoother(std::vector<double>& magnitudes, std::vector<double>& smoothed);
+
     const std::vector<double> interpolateAudio(const double& beginSample, const double& endSample, const int interpolationNum);
 
     void storeChunkIfProminent(const std::vector<double>& samples, int counter, double magnitude, double targetFrequency, const int productLength,
@@ -42,6 +47,15 @@ private:
 
     fftw_complex* m_complexOutput;
     fftw_plan m_plan;
+
+    // A-Weight for perceptive scaling
+    std::vector<double> m_aWeight;
+
+    // frequency-bin table for lookup
+    std::vector<double> m_binFreq;
+
+    // smoothed fft results (used for A-Weight scaled data)
+    std::vector<double> m_smoothed;
 
     std::vector<std::vector<double>> m_magnitudeChunks;
     std::unordered_map<int, std::vector<double>> m_sampleStorage;
