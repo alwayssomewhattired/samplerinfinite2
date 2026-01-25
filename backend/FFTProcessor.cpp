@@ -7,9 +7,9 @@
 FFTProcessor::FFTProcessor(int chunkSize, int sampleRate, double& freqStrength)
     : m_chunkSize(chunkSize), m_sampleRate(sampleRate), m_freqStrength(freqStrength)
 {
-    m_fftSize = chunkSize / 2 + 1;
+    m_outputBinsSize = chunkSize / 2 + 1;
     m_realInput = fftw_alloc_real(chunkSize);
-    m_complexOutput = fftw_alloc_complex(m_fftSize);
+    m_complexOutput = fftw_alloc_complex(m_outputBinsSize);
     m_plan = fftw_plan_dft_r2c_1d(chunkSize, m_realInput, m_complexOutput, FFTW_MEASURE);
 }
 
@@ -29,7 +29,9 @@ FFTProcessor::~FFTProcessor()
     }
 }
 
-bool FFTProcessor::isProminentPeak(const std::vector<double>& currentChunk, double targetFrequencyMagnitude, double freqStrength)
+// - average chunk for results instead of single loudest-peak finding
+bool FFTProcessor::isProminentPeak(const std::vector<double>& currentChunk, double targetFrequencyMagnitude, double freqStrength,
+    const int& controlNoteBin)
 {
     if (targetFrequencyMagnitude == 0) return false;
 
@@ -56,10 +58,11 @@ std::vector<double>& FFTProcessor::smoother(std::vector<double>& magnitudes, std
     // = 1/6 octave
     constexpr double kBandwidth = 0.12;
 
-    double binHz = (double)m_sampleRate / m_fftSize;
+    double binHz = (double)m_sampleRate / m_chunkSize;
 
-    for (int i = 0; i < m_fftSize / 2; ++i) {
-        double f = m_binFreq[i];
+    for (int i = 0; i < m_outputBinsSize; ++i) {
+        // double f = m_binFreq[i];
+        double f = i * binHz;
 
         int halfWidthBins = static_cast<int>((f * kBandwidth) / binHz);
         if (halfWidthBins < 1) halfWidthBins = 1;
@@ -68,7 +71,7 @@ std::vector<double>& FFTProcessor::smoother(std::vector<double>& magnitudes, std
         int count = 0;
 
         int start = std::max(1, i - halfWidthBins);
-        int end = std::min((int)m_fftSize / 2 - 1, i + halfWidthBins);
+        int end = std::min((int)m_outputBinsSize - 1, i + halfWidthBins);
 
         for (int j = start; j <= end; ++j) {
             sum += magnitudes[j];
@@ -84,9 +87,9 @@ std::vector<double>& FFTProcessor::smoother(std::vector<double>& magnitudes, std
 void FFTProcessor::compute(const std::vector<double>& audioData, std::vector<double> targetFrequency, const int productLength,
     const bool& isInterpolate, const int& crossfadeSamples)
 {
-    m_magnitudeChunks.clear();
+    m_powerChunks.clear();
 
-     m_sampleStorage.clear();
+    m_sampleStorage.clear();
 
     if (audioData.size() > static_cast<int>(audioData.size()))
     {
@@ -97,10 +100,10 @@ void FFTProcessor::compute(const std::vector<double>& audioData, std::vector<dou
     int numChunks = (maxChunkSize + m_chunkSize - 1) / m_chunkSize;
 
     // this precomputes stuff
-    m_binFreq.resize(m_fftSize);
-    m_aWeight.resize(m_fftSize);
-    for(int i = 0; i < m_fftSize; ++i) {
-        double f = (double)i * m_sampleRate / m_fftSize;
+    m_binFreq.resize(m_outputBinsSize);
+    m_aWeight.resize(m_outputBinsSize);
+    for(int i = 0; i < m_outputBinsSize; ++i) {
+        double f = (double)i * m_sampleRate / m_outputBinsSize;
         m_binFreq[i] = f;
         m_aWeight[i] = aWeightLinear(f);
     }
@@ -118,8 +121,8 @@ void FFTProcessor::compute(const std::vector<double>& audioData, std::vector<dou
         fftw_execute(m_plan);
 
         // changed to 'power' instead of magnitude
-        std::vector<double> magnitudes(m_fftSize);
-        for (int i = 0; i < m_fftSize; ++i)
+        std::vector<double> magnitudes(m_outputBinsSize);
+        for (int i = 0; i < m_outputBinsSize; ++i)
         {
             double re = m_complexOutput[i][0];
             double im = m_complexOutput[i][1];
@@ -129,22 +132,25 @@ void FFTProcessor::compute(const std::vector<double>& audioData, std::vector<dou
             power *= m_aWeight[i] * m_aWeight[i];
 
             magnitudes[i] = power;
-            // magnitudes[i] = std::sqrt(m_complexOutput[i][0] * m_complexOutput[i][0] + m_complexOutput[i][1] * m_complexOutput[i][1]);
         }
 
-        std::vector<double> smoothed(m_fftSize / 2, 0.0);
+        std::vector<double> smoothed(m_outputBinsSize, 0.0);
         smoothed = smoother(magnitudes, smoothed);
 
-        m_magnitudeChunks.push_back(std::move(smoothed));
-        // m_magnitudeChunks.push_back(std::move(magnitudes));
+        m_powerChunks.push_back(std::move(smoothed));
 
         for (double freq: targetFrequency)
         {
+
+            // // int controlNoteBin = static_cast<int>(freq * m_sampleRate / m_chunkSize);
             int controlNoteBin = static_cast<int>(freq * m_chunkSize / m_sampleRate);
-            if (controlNoteBin >= 0 && controlNoteBin < m_fftSize)
+            if (controlNoteBin >= 0 && controlNoteBin < m_outputBinsSize)
+            // qDebug() << "freq: " << freq << "\n";
+            // for(auto& controlNoteBin : m_binFreq)
             {
-                double targetFrequencyMagnitude = m_magnitudeChunks.back()[controlNoteBin];
-                if (isProminentPeak(m_magnitudeChunks.back(), targetFrequencyMagnitude, m_freqStrength))
+                // qDebug() << "controlNoteBin: " << controlNoteBin << "\n";
+                double targetFrequencyMagnitude = m_powerChunks.back()[controlNoteBin];
+                if (isProminentPeak(m_powerChunks.back(), targetFrequencyMagnitude, m_freqStrength, controlNoteBin))
                 {
                     storeChunkIfProminent(audioData, chunk, targetFrequencyMagnitude, freq, productLength, isInterpolate,
                                           crossfadeSamples);

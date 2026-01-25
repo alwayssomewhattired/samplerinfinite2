@@ -27,7 +27,7 @@ private:
     /**
     * @param ratio ***NEEDS CONTROL***
     */
-    bool isProminentPeak(const std::vector<double>& vec, double targetFrequency, double freqStrength);
+    bool isProminentPeak(const std::vector<double>& vec, double targetFrequency, double freqStrength, const int& controlNoteBin);
 
     double aWeightLinear(double f);
 
@@ -40,7 +40,7 @@ private:
 
     int m_chunkSize;
     int m_sampleRate;
-    int m_fftSize;
+    int m_outputBinsSize;
 
     // points to fftw_alloc_real
     double* m_realInput;
@@ -58,6 +58,7 @@ private:
     std::vector<double> m_smoothed;
 
     std::vector<std::vector<double>> m_magnitudeChunks;
+    std::vector<std::vector<double>> m_powerChunks;
     std::unordered_map<int, std::vector<double>> m_sampleStorage;
 
     double& m_freqStrength;

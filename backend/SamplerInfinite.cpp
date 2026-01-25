@@ -85,7 +85,7 @@ void AudioBackend::SamplerInfinite::process(const QString& freqs, const std::vec
     }
 
 
-    // frequency splitting logic in here... move to a utils at some point
+    // frequency splitting logic
     std::string freqsStr = freqs.toStdString();
     std::vector<double> parts;
     std::string::size_type start = 0;
@@ -100,19 +100,17 @@ void AudioBackend::SamplerInfinite::process(const QString& freqs, const std::vec
         start = end + 2;
 
     }
-
     std::string slicedFreq = freqsStr.substr(start);
     if (!slicedFreq.empty())
         parts.push_back(freqMap.at(slicedFreq));
 
-    // 1. each song
     for (const std::filesystem::path& song : paths)
     {
-        // std::filesystem::path p(song);
+
         auto songName = song.stem().string();
 
         if (isAppend)
-            songName = "appendage";
+            songName = "";
 
         FFTProcessor fftProcessor(config.chunkSize, config.sampleRate, m_freqStrength);
         parser.readAudioFileAsMono(song);
@@ -124,7 +122,8 @@ void AudioBackend::SamplerInfinite::process(const QString& freqs, const std::vec
 
         fftProcessor.compute(parser.getAudioData(), parts, config.productDurationSamples, isInterpolate, crossfadeSamples);
 
-        // wtf do i do with you??? vvv
+        // - wtf do i do with you??? vvv
+        // - also, we use power now, not magnitude
         const auto& chunks = fftProcessor.getMagnitudes();
 
         // wtf do i do with you??? vvv
@@ -145,14 +144,12 @@ void AudioBackend::SamplerInfinite::process(const QString& freqs, const std::vec
             // this inner loop is terrible. could easily mismatch frequency to samples vvv
             qDebug("fuck");
             std::filesystem::path dirPath = m_outputDirectory.toStdString() +
-                                            '/' +  "sampledinfinites" + '/' + freq + "/" + songName + "ohyah" + '_' + freq + ".wav";
+                                            '/' +  "sampledinfinites" + '/' + freq + "/" + songName + '_' + freq + ".wav";
             std::filesystem::create_directories(dirPath.parent_path());
             qDebug("you");
 
-            // make a control that chooses an existing audio file to append new audio to
-            // for now, make the choice automatically the 'appendage'.wav
             std::string finalProductName = m_outputDirectory.toStdString() +
-                                           '/' +  "sampledinfinites" + '/' + freq + "/" + songName + "ohyah" + '_' + freq + ".wav";
+                                           '/' +  "sampledinfinites" + '/' + freq + "/" + songName + '_' + freq + ".wav";
             qDebug() << "final product name : " << finalProductName << "\n";
             qDebug() << "freq : " << freq << "\n";
             if (isAppend) {
